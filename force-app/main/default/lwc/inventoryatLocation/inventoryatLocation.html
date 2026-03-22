@@ -1,0 +1,28 @@
+<template>
+	<lightning-card title="Inventory at Location">
+		<div class="slds-p-around_medium">
+			<lightning-button
+				label="Refresh Vehicle Counts"
+				onclick={refreshCounts}
+				variant="brand"
+				disabled={loading}
+				class="slds-m-bottom_small"
+			></lightning-button>
+
+			<template if:true={loading}>
+				<lightning-spinner alternative-text="Refreshing counts" size="small"></lightning-spinner>
+			</template>
+
+			<template if:true={error}>
+				<div class="slds-text-color_error">Error loading inventory counts.</div>
+			</template>
+
+			<lightning-datatable
+				key-field="locationId"
+				data={rows}
+				columns={columns}
+				hide-checkbox-column
+			></lightning-datatable>
+		</div>
+	</lightning-card>
+</template>

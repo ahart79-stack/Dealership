@@ -1,0 +1,52 @@
+<template>
+    <div class="slds-p-around_medium">
+        <h2 class="slds-text-heading_medium slds-m-bottom_small">Current Inventory</h2>
+
+        <div class="slds-m-bottom_small">
+            <lightning-button label="Refresh Inventory" onclick={handleRefresh}></lightning-button>
+        </div>
+
+        <lightning-input
+            type="search"
+            label="Search Inventory"
+            placeholder="Search by name, make, year, color, or dealership..."
+            value={searchTerm}
+            onchange={handleSearch}
+            class="slds-m-bottom_medium"
+        ></lightning-input>
+
+        <template if:true={error}>
+            <div class="slds-text-color_error">
+                Error loading inventory: {error.body.message}
+            </div>
+        </template>
+
+        <div class="slds-grid slds-wrap slds-grid_pull-padded">
+            <div class="slds-col slds-size_1-of-2 slds-p-horizontal_small">
+                <h3 class="slds-text-heading_small slds-m-bottom_small">New Automobiles ({newAutosFiltered.length})</h3>
+                <div style="height: 400px; overflow-y: auto;">
+                    <lightning-datatable
+                        key-field="Id"
+                        data={newAutosFiltered}
+                        columns={columns}
+                        hide-checkbox-column
+                        max-row-selection="0"
+                    ></lightning-datatable>
+                </div>
+            </div>
+
+            <div class="slds-col slds-size_1-of-2 slds-p-horizontal_small">
+                <h3 class="slds-text-heading_small slds-m-bottom_small">Used Automobiles ({usedAutosFiltered.length})</h3>
+                <div style="height: 400px; overflow-y: auto;">
+                    <lightning-datatable
+                        key-field="Id"
+                        data={usedAutosFiltered}
+                        columns={columns}
+                        hide-checkbox-column
+                        max-row-selection="0"
+                    ></lightning-datatable>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

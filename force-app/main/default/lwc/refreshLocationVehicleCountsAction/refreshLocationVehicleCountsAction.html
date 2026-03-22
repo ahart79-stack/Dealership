@@ -1,0 +1,8 @@
+<template>
+    <div class="slds-p-around_medium">
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Refreshing vehicle counts" size="small"></lightning-spinner>
+            <div class="slds-m-top_small">Refreshing vehicle counts...</div>
+        </template>
+    </div>
+</template>

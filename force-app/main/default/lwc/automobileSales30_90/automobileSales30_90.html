@@ -1,0 +1,74 @@
+<template>
+    <lightning-card title="Automobile Value Discounts (30–90 Days)" icon-name="standard:opportunity">
+        <div class="slds-m-around_medium">
+
+            <!-- Error banner -->
+            <template lwc:if={hasError}>
+                <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert">
+                    <h2>{error}</h2>
+                </div>
+            </template>
+
+            <!-- Success banner -->
+            <template lwc:if={successMessage}>
+                <div class="slds-notify slds-notify_toast slds-theme_success slds-m-bottom_small" role="status">
+                    <p>{successMessage}</p>
+                </div>
+            </template>
+
+            <!-- Action bar -->
+            <div class="slds-m-bottom_medium">
+                <lightning-button
+                    label="Apply Discounts to Eligible Vehicles"
+                    variant="brand"
+                    onclick={handleApplyDiscounts}
+                    disabled={isApplying}>
+                </lightning-button>
+                <template lwc:if={isApplying}>
+                    <lightning-spinner
+                        alternative-text="Applying discounts…"
+                        size="small"
+                        class="slds-m-left_small">
+                    </lightning-spinner>
+                </template>
+            </div>
+
+            <!-- 30–60 Day section -->
+            <div class="slds-m-bottom_large">
+                <h2 class="slds-text-heading_small slds-m-bottom_x-small">
+                    30–60 Days on Field — 15% Discount ({count3060} vehicles)
+                </h2>
+                <template lwc:if={has3060Autos}>
+                    <lightning-datatable
+                        key-field="recordId"
+                        data={autos3060}
+                        columns={columns}
+                        hide-checkbox-column>
+                    </lightning-datatable>
+                </template>
+                <template lwc:else>
+                    <p class="slds-text-color_weak">No vehicles in this range.</p>
+                </template>
+            </div>
+
+            <!-- 60+ Day section -->
+            <div>
+                <h2 class="slds-text-heading_small slds-m-bottom_x-small">
+                    60+ Days on Field — 25% Discount ({count60plus} vehicles)
+                </h2>
+                <template lwc:if={has60plusAutos}>
+                    <lightning-datatable
+                        key-field="recordId"
+                        data={autos60plus}
+                        columns={columns}
+                        hide-checkbox-column>
+                    </lightning-datatable>
+                </template>
+                <template lwc:else>
+                    <p class="slds-text-color_weak">No vehicles in this range.</p>
+                </template>
+            </div>
+
+        </div>
+    </lightning-card>
+</template>
