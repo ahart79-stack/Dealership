@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+
+    <!-- ═══════════════════════════════════════════
+         Assignments
+         ═══════════════════════════════════════════ -->
+    <assignments>
+        <name>Assign_Name_Base</name>
+        <label>Assign Base Name</label>
+        <locationX>264</locationX>
+        <locationY>792</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Name</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>formulaBaseName</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+
+    <assignments>
+        <name>Assign_Name_Numbered</name>
+        <label>Assign Numbered Name</label>
+        <locationX>528</locationX>
+        <locationY>792</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Name</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>formulaNameWithNumber</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+
+    <assignments>
+        <name>Increment_Counter</name>
+        <label>Increment Counter</label>
+        <locationX>396</locationX>
+        <locationY>576</locationY>
+        <assignmentItems>
+            <assignToReference>varCounter</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <numberValue>1.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Loop_Count_Purchases</targetReference>
+        </connector>
+    </assignments>
+
+    <!-- ═══════════════════════════════════════════
+         Decisions
+         ═══════════════════════════════════════════ -->
+    <decisions>
+        <name>Check_Contact_Populated</name>
+        <label>Contact Populated?</label>
+        <locationX>396</locationX>
+        <locationY>120</locationY>
+        <defaultConnectorLabel>No Contact (Skip)</defaultConnectorLabel>
+        <rules>
+            <name>Has_Contact</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Contact__c</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Get_Contact</targetReference>
+            </connector>
+            <label>Has Contact</label>
+        </rules>
+    </decisions>
+
+    <decisions>
+        <name>Check_Has_Existing</name>
+        <label>Has Existing Purchases?</label>
+        <locationX>396</locationX>
+        <locationY>696</locationY>
+        <defaultConnector>
+            <targetReference>Assign_Name_Base</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No (First Purchase)</defaultConnectorLabel>
+        <rules>
+            <name>Has_Multiples</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varCounter</leftValueReference>
+                <operator>GreaterThan</operator>
+                <rightValue>
+                    <numberValue>0.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Assign_Name_Numbered</targetReference>
+            </connector>
+            <label>Has Multiple</label>
+        </rules>
+    </decisions>
+
+    <!-- ═══════════════════════════════════════════
+         Formulas
+         ═══════════════════════════════════════════ -->
+    <formulas>
+        <!-- "Alex Smith - 2026-03-23" -->
+        <name>formulaBaseName</name>
+        <dataType>String</dataType>
+        <expression>{!Get_Contact.Name} &amp; " - " &amp; TEXT(TODAY())</expression>
+    </formulas>
+
+    <formulas>
+        <!-- "Alex Smith - 2026-03-23 - 2" (varCounter is count of earlier purchases, so +1 = this purchase's number) -->
+        <name>formulaNameWithNumber</name>
+        <dataType>String</dataType>
+        <expression>{!Get_Contact.Name} &amp; " - " &amp; TEXT(TODAY()) &amp; " - " &amp; TEXT({!varCounter} + 1)</expression>
+    </formulas>
+
+    <interviewLabel>Set Purchase Name {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Set Purchase Name</label>
+
+    <!-- ═══════════════════════════════════════════
+         Loop
+         ═══════════════════════════════════════════ -->
+    <loops>
+        <name>Loop_Count_Purchases</name>
+        <label>Loop Count Purchases</label>
+        <locationX>396</locationX>
+        <locationY>480</locationY>
+        <collectionReference>Get_Existing_Purchases</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector>
+            <targetReference>Increment_Counter</targetReference>
+        </nextValueConnector>
+        <noMoreValuesConnector>
+            <targetReference>Check_Has_Existing</targetReference>
+        </noMoreValuesConnector>
+    </loops>
+
+    <processType>AutoLaunchedFlow</processType>
+
+    <!-- ═══════════════════════════════════════════
+         Record Lookups
+         ═══════════════════════════════════════════ -->
+    <recordLookups>
+        <name>Get_Contact</name>
+        <label>Get Contact</label>
+        <locationX>396</locationX>
+        <locationY>216</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>Get_Existing_Purchases</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Id</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>$Record.Contact__c</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Contact</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+
+    <recordLookups>
+        <name>Get_Existing_Purchases</name>
+        <label>Get Existing Purchases for Contact</label>
+        <locationX>396</locationX>
+        <locationY>312</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>Loop_Count_Purchases</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Contact__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>$Record.Contact__c</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>false</getFirstRecordOnly>
+        <object>Purchase__c</object>
+        <queriedFields>Id</queriedFields>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+
+    <!-- ═══════════════════════════════════════════
+         Start
+         ═══════════════════════════════════════════ -->
+    <start>
+        <locationX>272</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Check_Contact_Populated</targetReference>
+        </connector>
+        <object>Purchase__c</object>
+        <recordTriggerType>Create</recordTriggerType>
+        <triggerType>RecordBeforeSave</triggerType>
+    </start>
+
+    <status>Active</status>
+
+    <!-- ═══════════════════════════════════════════
+         Variables
+         ═══════════════════════════════════════════ -->
+    <variables>
+        <name>varCounter</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <scale>0</scale>
+        <value>
+            <numberValue>0.0</numberValue>
+        </value>
+    </variables>
+</Flow>

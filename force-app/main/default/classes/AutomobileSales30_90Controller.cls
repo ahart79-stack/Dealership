@@ -4,6 +4,7 @@ public with sharing class AutomobileSales30_90Controller {
         @AuraEnabled public Id    recordId       { get; set; }
         @AuraEnabled public String name          { get; set; }
         @AuraEnabled public String make          { get; set; }
+        @AuraEnabled public String dealershipName { get; set; }
         @AuraEnabled public Date   boughtDate    { get; set; }
         @AuraEnabled public Integer daysOnField  { get; set; }
         @AuraEnabled public Decimal currentValue { get; set; }
@@ -25,6 +26,7 @@ public with sharing class AutomobileSales30_90Controller {
         Id soldRtId = getSoldRecordTypeId();
 
         String soql = 'SELECT Id, Name, Make__c, Bought__c, Value__c,' +
+                  ' Type_of_Dealership__r.Name,' +
                       ' X30_60_Discount__c, X60_90_Discount__c' +
                       ' FROM Automobile__c' +
                       ' WHERE Bought__c != NULL AND Bought__c <= :cutoff30' +
@@ -49,6 +51,7 @@ public with sharing class AutomobileSales30_90Controller {
             ad.recordId      = auto.Id;
             ad.name          = auto.Name;
             ad.make          = auto.Make__c;
+            ad.dealershipName = auto.Type_of_Dealership__r != null ? auto.Type_of_Dealership__r.Name : null;
             ad.boughtDate    = auto.Bought__c;
             ad.daysOnField   = days;
             ad.currentValue  = auto.Value__c != null ? auto.Value__c : 0;
@@ -91,7 +94,7 @@ public with sharing class AutomobileSales30_90Controller {
         Id soldRtId = getSoldRecordTypeId();
 
         String soql = 'SELECT Id, Bought__c, Value__c, Original_Value__c,' +
-                      ' X30_60_Discount__c, X60_90_Discount__c' +
+                      ' Sales_Price__c, X30_60_Discount__c, X60_90_Discount__c' +
                       ' FROM Automobile__c' +
                       ' WHERE Bought__c != NULL AND Bought__c <= :cutoff30' +
                       ' AND Value__c != NULL' +
@@ -117,11 +120,15 @@ public with sharing class AutomobileSales30_90Controller {
             if (auto.Original_Value__c == null) {
                 upd.Original_Value__c = auto.Value__c;
             }
+            Decimal discountAmt;
             if (days > 60) {
-                upd.X60_90_Discount__c = (auto.Value__c * 0.25).setScale(2);
+                discountAmt            = (auto.Value__c * 0.25).setScale(2);
+                upd.X60_90_Discount__c = discountAmt;
             } else {
-                upd.X30_60_Discount__c = (auto.Value__c * 0.15).setScale(2);
+                discountAmt            = (auto.Value__c * 0.15).setScale(2);
+                upd.X30_60_Discount__c = discountAmt;
             }
+            upd.Sales_Price__c = (auto.Value__c - discountAmt).setScale(2);
             toUpdate.add(upd);
         }
 

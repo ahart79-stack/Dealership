@@ -7,6 +7,7 @@ import applyDiscounts from '@salesforce/apex/AutomobileSales30_90Controller.appl
 const COLUMNS = [
     { label: 'Name',             fieldName: 'name',            type: 'text' },
     { label: 'Make',             fieldName: 'make',            type: 'text' },
+    { label: 'Dealership',       fieldName: 'dealershipName',  type: 'text' },
     { label: 'Bought Date',      fieldName: 'boughtDate',      type: 'date' },
     { label: 'Days on Field',    fieldName: 'daysOnField',     type: 'number' },
     { label: 'Current Value',   fieldName: 'currentValue',    type: 'currency' },

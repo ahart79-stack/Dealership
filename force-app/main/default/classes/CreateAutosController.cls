@@ -92,7 +92,9 @@ public with sharing class CreateAutosController {
                 Integer year = (recordType == 'New') ? currentYear : (currentYear - 1 - Math.mod(i, 10));
                 Decimal value = Decimal.valueOf(15000 + Math.mod(i * 1234, 50000));
                 Integer mileage = (recordType == 'New') ? Math.mod(i * 50, 1000) : (10000 + Math.mod(i * 15000, 140000));
-                Decimal boughtPrice = (value * Decimal.valueOf(78 + Math.mod(i * 3, 15))) / Decimal.valueOf(100);
+                Decimal boughtPrice = (recordType == 'New')
+                    ? (value * Decimal.valueOf(70)) / Decimal.valueOf(100)
+                    : (value * Decimal.valueOf(78 + Math.mod(i * 3, 15))) / Decimal.valueOf(100);
                 Integer daysAgo = Math.mod(Integer.valueOf(Math.abs(Math.mod(timestamp + (i * 7919), 2147483647))), 60);
                 Date boughtDate = today.addDays(-daysAgo);
                 
@@ -115,6 +117,7 @@ public with sharing class CreateAutosController {
                 auto.Make__c = make;
                 auto.Color__c = color;
                 auto.Original_Value__c = value;
+                auto.Sales_Price__c = value;
                 auto.Type_of_Dealership__c = makeToDealershipId.get(make);
                 if (!locationIds.isEmpty()) {
                     Integer locationIndex = Math.mod(Math.abs(Crypto.getRandomInteger()), locationIds.size());

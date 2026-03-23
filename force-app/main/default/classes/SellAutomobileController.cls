@@ -6,6 +6,9 @@ public with sharing class SellAutomobileController {
                 count = 10;
             }
 
+            // Load a pool of contacts to attach to sold vehicles
+            List<Contact> contactPool = [SELECT Id FROM Contact LIMIT 200];
+
             Map<String, Schema.SObjectField> fieldMap = Schema.SObjectType.Automobile__c.fields.getMap();
             if (!fieldMap.containsKey('Bought__c')) {
                 throw new AuraHandledException('Automobile__c.Bought__c is required to sell vehicles with date logic.');
@@ -42,6 +45,12 @@ public with sharing class SellAutomobileController {
 
             Integer querySize = Math.max(count * 5, 50);
             String selectFields = 'Id, Bought__c, Value__c';
+            if (fieldMap.containsKey('Make__c')) {
+                selectFields += ', Make__c';
+            }
+            if (fieldMap.containsKey('Year__c')) {
+                selectFields += ', Year__c';
+            }
             if (boughtPriceField != null) {
                 selectFields += ', ' + boughtPriceField;
             }
@@ -61,6 +70,10 @@ public with sharing class SellAutomobileController {
             Integer target = Math.min(count, candidates.size());
             Set<Integer> selectedIndexes = new Set<Integer>();
             List<Automobile__c> updates = new List<Automobile__c>();
+            List<Id> selectedBuyerIds = new List<Id>();
+            List<Automobile__c> selectedSources = new List<Automobile__c>();
+            List<Date> selectedSoldDates = new List<Date>();
+            List<Decimal> selectedSalePrices = new List<Decimal>();
             Integer attempts = 0;
 
             while (updates.size() < target && attempts < candidates.size() * 4) {
@@ -127,9 +140,20 @@ public with sharing class SellAutomobileController {
                 if (statusField != null) {
                     row.put(statusField, 'Sold');
                 }
+                // Attach a random contact as the buyer
+                Id buyerId;
+                if (!contactPool.isEmpty() && fieldMap.containsKey('Buyer__c')) {
+                    Integer contactIdx = Math.mod(Math.abs(Crypto.getRandomInteger()), contactPool.size());
+                    buyerId = contactPool[contactIdx].Id;
+                    row.Buyer__c = buyerId;
+                }
                 // RecordType is changed in a separate DML pass below
 
                 updates.add(row);
+                selectedBuyerIds.add(buyerId);
+                selectedSources.add(source);
+                selectedSoldDates.add(soldDate);
+                selectedSalePrices.add(salePrice);
             }
 
             if (updates.isEmpty()) {
@@ -140,11 +164,22 @@ public with sharing class SellAutomobileController {
             List<String> errors = new List<String>();
             Database.SaveResult[] results = Database.update(updates, false);
             List<Automobile__c> rtUpdates = new List<Automobile__c>();
+            List<Purchase__c> purchaseInserts = new List<Purchase__c>();
             for (Integer i = 0; i < results.size(); i++) {
                 if (results[i].isSuccess()) {
                     soldCount++;
                     if (soldRecordTypeId != null) {
                         rtUpdates.add(new Automobile__c(Id = updates[i].Id, RecordTypeId = soldRecordTypeId));
+                    }
+                    if (selectedBuyerIds[i] != null) {
+                        purchaseInserts.add(new Purchase__c(
+                            Automobile__c = updates[i].Id,
+                            Contact__c = selectedBuyerIds[i],
+                            Make__c = selectedSources[i].Make__c,
+                            Year__c = selectedSources[i].Year__c == null ? null : String.valueOf(selectedSources[i].Year__c),
+                            Purchased_Date__c = selectedSoldDates[i],
+                            Purchase_Price__c = selectedSalePrices[i] == null ? null : selectedSalePrices[i].setScale(2)
+                        ));
                     }
                 } else {
                     for (Database.Error e : results[i].getErrors()) {
@@ -155,6 +190,16 @@ public with sharing class SellAutomobileController {
             // Best-effort record type change — don't let failures here roll back the sell
             if (!rtUpdates.isEmpty()) {
                 Database.update(rtUpdates, false);
+            }
+            if (!purchaseInserts.isEmpty()) {
+                Database.SaveResult[] purchaseResults = Database.insert(purchaseInserts, false);
+                for (Database.SaveResult purchaseResult : purchaseResults) {
+                    if (!purchaseResult.isSuccess()) {
+                        for (Database.Error e : purchaseResult.getErrors()) {
+                            errors.add('Purchase creation failed: ' + e.getMessage());
+                        }
+                    }
+                }
             }
             if (soldCount == 0 && !errors.isEmpty()) {
                 throw new AuraHandledException('No cars sold. Errors: ' + String.join(errors, '; '));

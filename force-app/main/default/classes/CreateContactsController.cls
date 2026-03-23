@@ -16,20 +16,45 @@ public with sharing class CreateContactsController {
             }
 
             List<Contact> contacts = new List<Contact>();
-            String[] firstNames = new String[]{'Alex','Sam','Taylor','Jordan','Casey','Jamie','Chris','Pat','Lee','Morgan'};
-            String[] lastNames = new String[]{'Smith','Johnson','Brown','Taylor','Anderson','Thomas','Jackson','White','Harris','Martin'};
-            String[] areaCodes = new String[]{'415','212','303','720','312','206','503','215','404','313'};
+            String[] firstNames = new String[]{
+                'Alex','Sam','Taylor','Jordan','Casey','Jamie','Chris','Pat','Lee','Morgan',
+                'Dana','Robin','Quinn','Blake','Skyler','Avery','Cameron','Drew','Reese','Logan',
+                'Peyton','Sydney','Hayden','Jesse','Alexis','Bailey','Dylan','Emerson','Finley','Harper',
+                'Hunter','Kendall','Lane','Marley','Parker','Remy','River','Rowan','Sage','Spencer',
+                'Sutton','Tatum','Teagan','Wren','Zion','Arlo','Beau','Brody','Caleb','Cole',
+                'Connor','Declan','Eli','Ethan','Felix','Gavin','Henry','Ian','Jack','Jake',
+                'James','Jonah','Julian','Kai','Landon','Liam','Lucas','Mason','Miles','Nathan',
+                'Noah','Nolan','Owen','Ryan','Sean','Seth','Tristan','Tyler','Victor','Wyatt',
+                'Abby','Amber','Amy','Anna','Aria','Audrey','Bella','Brooke','Claire','Chloe',
+                'Elena','Eva','Grace','Hannah','Isla','Ivy','Jane','Julia','Kate','Laura'
+            };
+            String[] lastNames = new String[]{
+                'Smith','Johnson','Brown','Taylor','Anderson','Thomas','Jackson','White','Harris','Martin',
+                'Thompson','Garcia','Martinez','Robinson','Clark','Rodriguez','Lewis','Lee','Walker','Hall',
+                'Allen','Young','Hernandez','King','Wright','Lopez','Hill','Scott','Green','Adams',
+                'Baker','Gonzalez','Nelson','Carter','Mitchell','Perez','Roberts','Turner','Phillips','Campbell',
+                'Parker','Evans','Edwards','Collins','Stewart','Sanchez','Morris','Rogers','Reed','Cook',
+                'Morgan','Bell','Murphy','Bailey','Rivera','Cooper','Richardson','Cox','Howard','Ward',
+                'Torres','Peterson','Gray','Ramirez','James','Watson','Brooks','Kelly','Sanders','Price',
+                'Bennett','Wood','Barnes','Ross','Henderson','Coleman','Jenkins','Perry','Powell','Long',
+                'Patterson','Hughes','Flores','Washington','Butler','Simmons','Foster','Gonzales','Bryant','Alexander',
+                'Hart','Chapman','Ripley','Grey','Ogawa','Field','Reuss','Barra','Green','James'
+            };
+            String[] areaCodes = new String[]{'415','212','303','720','312','206','503','215','404','313',
+                                              '617','512','702','602','305','443','614','901','907','808'};
             
-            Long timestamp = System.currentTimeMillis();
-
             for (Integer i = 0; i < count; i++){
-                String fn = firstNames[Math.mod(i, firstNames.size())];
-                String ln = lastNames[Math.mod(i, lastNames.size())];
-                String email = (fn + '.' + ln + timestamp + i + '@testdata.example.com').toLowerCase();
+                Integer fnIdx = Math.mod(Math.abs(Crypto.getRandomInteger()), firstNames.size());
+                Integer lnIdx = Math.mod(Math.abs(Crypto.getRandomInteger()), lastNames.size());
+                String fn = firstNames[fnIdx];
+                String ln = lastNames[lnIdx];
+                Integer suffix = 1000 + Math.mod(Math.abs(Crypto.getRandomInteger()), 9000);
+                String email = (fn + '.' + ln + suffix + '@testdata.example.com').toLowerCase();
                 
-                String areaCode = areaCodes[Math.mod(i, areaCodes.size())];
-                Integer prefix = 200 + Math.mod(i, 600);
-                Integer line = 1000 + Math.mod(i, 9000);
+                Integer acIdx = Math.mod(Math.abs(Crypto.getRandomInteger()), areaCodes.size());
+                String areaCode = areaCodes[acIdx];
+                Integer prefix = 200 + Math.mod(Math.abs(Crypto.getRandomInteger()), 600);
+                Integer line = 1000 + Math.mod(Math.abs(Crypto.getRandomInteger()), 9000);
                 String phone = '(' + areaCode + ') ' + prefix + '-' + line;
                 
                 Contact c = new Contact(
