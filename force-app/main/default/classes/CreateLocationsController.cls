@@ -1,5 +1,8 @@
 public with sharing class CreateLocationsController {
 
+    private static final Decimal DISTRICT_RADIUS_MILES = 100;
+    private static final Decimal EARTH_RADIUS_MILES = 3958.756;
+
     // Northeast US zip codes curated so each is ~50+ miles from its neighbors.
     // Format: zip, city, state abbreviation, latitude, longitude
     private static final List<String[]> NORTHEAST_ZIPS = new List<String[]>{
@@ -72,6 +75,14 @@ public with sharing class CreateLocationsController {
             } else if (locationFields.containsKey('AccountId')) {
                 accountLookupField = 'AccountId';
             }
+            List<String> districtValues = new List<String>();
+            if (locationFields.containsKey('District__c')) {
+                for (Schema.PicklistEntry entry : locationFields.get('District__c').getDescribe().getPicklistValues()) {
+                    if (entry.isActive()) {
+                        districtValues.add(entry.getValue());
+                    }
+                }
+            }
 
             // Shuffle the zip list deterministically using a timestamp seed
             List<String[]> pool = new List<String[]>(NORTHEAST_ZIPS);
@@ -98,6 +109,7 @@ public with sharing class CreateLocationsController {
                 locationNames.add(name);
                 streetAddresses.add(street);
             }
+            List<String> districts = buildDistrictAssignments(selectedZips, districtValues);
 
             List<Account> accountsToCreate = new List<Account>();
             for (Integer i = 0; i < count; i++) {
@@ -137,6 +149,9 @@ public with sharing class CreateLocationsController {
                 if (locationFields.containsKey('Zip_Code__c')) {
                     loc.put('Zip_Code__c', zip[0]);
                 }
+                if (locationFields.containsKey('District__c')) {
+                    loc.put('District__c', districts[i]);
+                }
                 if (accountLookupField != null && accountResults[i].isSuccess()) {
                     loc.put(accountLookupField, accountResults[i].getId());
                 }
@@ -155,5 +170,72 @@ public with sharing class CreateLocationsController {
         } catch (Exception e) {
             throw new AuraHandledException('Error creating locations: ' + e.getMessage());
         }
+    }
+
+    private static List<String> buildDistrictAssignments(List<String[]> selectedZips, List<String> districtValues) {
+        List<String> districts = new List<String>();
+        for (Integer i = 0; i < selectedZips.size(); i++) {
+            districts.add(null);
+        }
+        if (districtValues.isEmpty()) {
+            return districts;
+        }
+
+        Integer districtNumber = 1;
+        for (Integer i = 0; i < selectedZips.size(); i++) {
+            if (districts[i] != null) {
+                continue;
+            }
+
+            if (districtNumber > districtValues.size()) {
+                throw new AuraHandledException('Location.District__c does not have enough picklist values for the generated districts.');
+            }
+
+            String districtName = districtValues[districtNumber - 1];
+            List<Integer> queue = new List<Integer>{ i };
+            districts[i] = districtName;
+
+            while (!queue.isEmpty()) {
+                Integer currentIndex = queue.remove(0);
+                for (Integer candidateIndex = 0; candidateIndex < selectedZips.size(); candidateIndex++) {
+                    if (districts[candidateIndex] != null) {
+                        continue;
+                    }
+                    if (distanceInMiles(selectedZips[currentIndex], selectedZips[candidateIndex]) <= DISTRICT_RADIUS_MILES) {
+                        districts[candidateIndex] = districtName;
+                        queue.add(candidateIndex);
+                    }
+                }
+            }
+
+            districtNumber++;
+        }
+
+        return districts;
+    }
+
+    private static Decimal distanceInMiles(String[] leftZip, String[] rightZip) {
+        Decimal leftLatitudeRadians = degreesToRadians(Decimal.valueOf(leftZip[3]));
+        Decimal leftLongitudeRadians = degreesToRadians(Decimal.valueOf(leftZip[4]));
+        Decimal rightLatitudeRadians = degreesToRadians(Decimal.valueOf(rightZip[3]));
+        Decimal rightLongitudeRadians = degreesToRadians(Decimal.valueOf(rightZip[4]));
+
+        Decimal latitudeDelta = rightLatitudeRadians - leftLatitudeRadians;
+        Decimal longitudeDelta = rightLongitudeRadians - leftLongitudeRadians;
+        Decimal haversine = square(Math.sin((Double)(latitudeDelta / 2)))
+            + Math.cos((Double)leftLatitudeRadians)
+            * Math.cos((Double)rightLatitudeRadians)
+            * square(Math.sin((Double)(longitudeDelta / 2)));
+        Double centralAngle = 2 * Math.atan2(Math.sqrt((Double)haversine), Math.sqrt(1 - (Double)haversine));
+
+        return EARTH_RADIUS_MILES * Decimal.valueOf(centralAngle);
+    }
+
+    private static Decimal degreesToRadians(Decimal degrees) {
+        return degrees * Decimal.valueOf(Math.PI) / 180;
+    }
+
+    private static Decimal square(Double value) {
+        return Decimal.valueOf(value * value);
     }
 }
