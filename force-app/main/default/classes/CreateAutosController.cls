@@ -114,6 +114,9 @@ public with sharing class CreateAutosController {
                 auto.VIN__c = vin;
                 auto.Mileage__c = mileage;
                 auto.Bought__c = boughtDate;
+                if (recordType == 'New') {
+                    auto.Bought_Via__c = 'Factory';
+                }
                 auto.Make__c = make;
                 auto.Color__c = color;
                 auto.Original_Value__c = value;
