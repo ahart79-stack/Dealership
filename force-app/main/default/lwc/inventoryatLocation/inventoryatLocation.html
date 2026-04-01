@@ -2,7 +2,7 @@
 	<lightning-card title="Inventory at Location">
 		<div class="slds-p-around_medium">
 			<lightning-button
-				label="Refresh Vehicle Counts"
+				label="Refresh Data"
 				onclick={refreshCounts}
 				variant="brand"
 				disabled={loading}
@@ -17,10 +17,21 @@
 				<div class="slds-text-color_error">Error loading inventory counts.</div>
 			</template>
 
+			<div class="slds-text-title_bold slds-m-bottom_x-small">Vehicles by Location</div>
 			<lightning-datatable
 				key-field="locationId"
-				data={rows}
-				columns={columns}
+				data={locationRows}
+				columns={locationColumns}
+				hide-checkbox-column
+			></lightning-datatable>
+
+			<div class="slds-text-title_bold slds-m-top_large slds-m-bottom_x-small">
+				Contacts with More Than 2 Purchases
+			</div>
+			<lightning-datatable
+				key-field="contactId"
+				data={contactRows}
+				columns={contactColumns}
 				hide-checkbox-column
 			></lightning-datatable>
 		</div>

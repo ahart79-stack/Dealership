@@ -24,6 +24,11 @@
                 <default>false</default>
                 <label>Factory</label>
             </value>
+            <value>
+                <fullName>Auto.dev</fullName>
+                <default>false</default>
+                <label>Auto.dev</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

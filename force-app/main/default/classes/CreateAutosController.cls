@@ -106,7 +106,7 @@ public with sharing class CreateAutosController {
                 }
                 
                 Automobile__c auto = new Automobile__c(
-                    Name = make + ' ' + model
+                    Name = make + ' ' + model + ' - ' + vin
                 );
                 auto.Year__c = String.valueOf(year);
                 auto.Value__c = value;

@@ -24,6 +24,22 @@ public with sharing class InventoryAtLocationController {
         }
     }
 
+    public class ContactPurchaseRow {
+        @AuraEnabled public Id contactId;
+        @AuraEnabled public String contactName;
+        @AuraEnabled public String email;
+        @AuraEnabled public String phone;
+        @AuraEnabled public Integer purchaseCount;
+
+        public ContactPurchaseRow(Id contactId, String contactName, String email, String phone, Integer purchaseCount) {
+            this.contactId = contactId;
+            this.contactName = contactName;
+            this.email = email;
+            this.phone = phone;
+            this.purchaseCount = purchaseCount;
+        }
+    }
+
     @AuraEnabled
     public static List<LocationInventoryRow> getVehicleCountByLocation() {
         Map<String, Schema.SObjectField> locationFields = Schema.SObjectType.Location.fields.getMap();
@@ -92,6 +108,45 @@ public with sharing class InventoryAtLocationController {
                 ? 0
                 : Integer.valueOf(String.valueOf(countValue));
             rows.add(new LocationInventoryRow((Id) loc.get('Id'), (String) loc.get('Name'), vehicleCount));
+        }
+
+        return rows;
+    }
+
+    @AuraEnabled
+    public static List<ContactPurchaseRow> getContactsWithMoreThanTwoPurchases() {
+        Map<Id, Integer> purchaseCountByContactId = new Map<Id, Integer>();
+
+        for (AggregateResult ar : [
+            SELECT Contact__c contactId, COUNT(Id) purchaseCount
+            FROM Purchase__c
+            WHERE Contact__c != null
+            GROUP BY Contact__c
+            HAVING COUNT(Id) > 2
+        ]) {
+            Id contactId = (Id) ar.get('contactId');
+            Integer purchaseCount = Integer.valueOf(String.valueOf(ar.get('purchaseCount')));
+            purchaseCountByContactId.put(contactId, purchaseCount);
+        }
+
+        if (purchaseCountByContactId.isEmpty()) {
+            return new List<ContactPurchaseRow>();
+        }
+
+        List<ContactPurchaseRow> rows = new List<ContactPurchaseRow>();
+        for (Contact contactRecord : [
+            SELECT Id, Name, Email, Phone
+            FROM Contact
+            WHERE Id IN :purchaseCountByContactId.keySet()
+            ORDER BY Name ASC
+        ]) {
+            rows.add(new ContactPurchaseRow(
+                contactRecord.Id,
+                contactRecord.Name,
+                contactRecord.Email,
+                contactRecord.Phone,
+                purchaseCountByContactId.get(contactRecord.Id)
+            ));
         }
 
         return rows;

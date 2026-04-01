@@ -1,0 +1,269 @@
+<template>
+	<lightning-card title="My Cars and Purchases" icon-name="standard:customer_portal_users">
+		<div class="slds-p-around_medium">
+			<div class="header-row slds-m-bottom_medium">
+				<div>
+					<p class="eyebrow">Customer Garage</p>
+					<h2 class="slds-text-heading_medium">{contactName}</h2>
+					<p class="slds-text-body_small intro-copy">
+						Review the automobiles tied to your account and the purchases you have made.
+					</p>
+				</div>
+				<div class="header-actions">
+					<lightning-button label="Request Service" variant="brand" onclick={handleRequestService}></lightning-button>
+					<lightning-button label="Refresh" onclick={handleRefresh}></lightning-button>
+				</div>
+			</div>
+
+			<template if:true={loading}>
+				<lightning-spinner alternative-text="Loading your cars and purchases" size="small"></lightning-spinner>
+			</template>
+
+			<template if:true={errorMessage}>
+				<div class="slds-text-color_error slds-m-bottom_medium">{errorMessage}</div>
+			</template>
+
+			<template if:true={hasContact}>
+				<template if:false={isServiceTabActive}>
+					<div class="summary-grid slds-m-bottom_large">
+						<div class="summary-tile">
+							<p class="tile-label">Cars</p>
+							<p class="tile-value">{automobileCount}</p>
+						</div>
+						<div class="summary-tile">
+							<p class="tile-label">Purchases</p>
+							<p class="tile-value">{purchaseCount}</p>
+						</div>
+						<div class="summary-tile">
+							<p class="tile-label">Total Spent</p>
+							<lightning-formatted-number
+								class="tile-value"
+								value={totalSpent}
+								format-style="currency"
+							></lightning-formatted-number>
+						</div>
+					</div>
+				</template>
+
+				<lightning-tabset variant="scoped" active-tab-value={activeTabValue}>
+					<lightning-tab label={carsTabLabel} value="cars" onactive={handleTabActivated}>
+						<div class="tab-panel">
+							<template if:true={hasAutomobiles}>
+								<lightning-datatable
+									key-field="automobileId"
+									data={automobileRows}
+									columns={automobileColumns}
+									hide-checkbox-column
+								></lightning-datatable>
+							</template>
+							<template if:false={hasAutomobiles}>
+								<div class="empty-state">
+									<p class="slds-text-heading_small">No cars found</p>
+									<p class="slds-m-top_x-small">Cars linked to your contact will appear here.</p>
+								</div>
+							</template>
+						</div>
+					</lightning-tab>
+
+					<lightning-tab label={purchasesTabLabel} value="purchases" onactive={handleTabActivated}>
+						<div class="tab-panel">
+							<template if:true={hasPurchases}>
+								<lightning-datatable
+									key-field="purchaseId"
+									data={purchaseRows}
+									columns={purchaseColumns}
+									hide-checkbox-column
+								></lightning-datatable>
+							</template>
+							<template if:false={hasPurchases}>
+								<div class="empty-state">
+									<p class="slds-text-heading_small">No purchases found</p>
+									<p class="slds-m-top_x-small">Your purchase history will appear here after vehicles are sold to you.</p>
+								</div>
+							</template>
+						</div>
+					</lightning-tab>
+
+					<lightning-tab label="Service" value="service" onactive={handleTabActivated}>
+						<div class="tab-panel">
+							<div class="service-panel">
+								<div class="service-panel__header">
+									<div>
+										<p class="tile-label">Request Service</p>
+										<template if:true={isServiceSelectStep}>
+											<h3 class="slds-text-heading_small">Select from your current cars</h3>
+										</template>
+										<template if:true={isServiceDetailsStep}>
+											<h3 class="slds-text-heading_small">Add service details</h3>
+										</template>
+									</div>
+									<lightning-button label="Back" onclick={handleCancelServiceRequest}></lightning-button>
+								</div>
+
+								<template if:true={hasAutomobiles}>
+									<template if:true={isServiceSelectStep}>
+										<lightning-datatable
+											key-field="automobileId"
+											data={automobileRows}
+											columns={automobileColumns}
+											max-row-selection="1"
+											selected-rows={selectedServiceCarIds}
+											onrowselection={handleServiceCarSelection}
+										></lightning-datatable>
+										<div class="service-selection__actions slds-m-top_medium">
+											<lightning-button
+												label="Continue"
+												variant="brand"
+												onclick={handleContinueToServiceDetails}
+												disabled={disableContinueToServiceDetails}
+											></lightning-button>
+										</div>
+									</template>
+
+									<template if:true={isServiceDetailsStep}>
+										<template if:true={hasSelectedServiceCar}>
+											<div class="service-selection slds-m-bottom_medium">
+												<p class="tile-label">Selected Car</p>
+												<p class="service-selection__name">{selectedServiceCar.name}</p>
+												<p class="slds-text-body_small">{selectedServiceCar.make} {selectedServiceCar.year}</p>
+											</div>
+										</template>
+
+										<div class="slds-grid slds-wrap slds-gutters slds-m-bottom_medium">
+											<div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+												<lightning-input
+													type="text"
+													label="Issue Summary"
+													value={serviceConcernSummary}
+													onchange={handleServiceInputChange}
+													data-field="concernSummary"
+												></lightning-input>
+											</div>
+											<div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+												<lightning-combobox
+													label="Type"
+													value={serviceType}
+													options={serviceTypeOptions}
+													onchange={handleServiceInputChange}
+													data-field="serviceType"
+													placeholder="Select Type"
+												></lightning-combobox>
+											</div>
+											<div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+												<lightning-combobox
+													label="Sub Type"
+													value={serviceSubType}
+													options={serviceSubTypeOptions}
+													onchange={handleServiceInputChange}
+													data-field="serviceSubType"
+													placeholder="Select Sub Type"
+												></lightning-combobox>
+											</div>
+											<div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+												<lightning-input
+													type="number"
+													label="Milage"
+													value={serviceMileage}
+													onchange={handleServiceInputChange}
+													data-field="serviceMileage"
+													required
+													min="0"
+												></lightning-input>
+											</div>
+											<div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+												<lightning-combobox
+													label="Preferred Service Date"
+													value={servicePreferredDate}
+													options={preferredDateOptions}
+													onchange={handleServiceInputChange}
+													data-field="preferredDate"
+													required
+													placeholder="Select Date (Sundays excluded)"
+												></lightning-combobox>
+											</div>
+											<div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+												<lightning-combobox
+													label="Time"
+													value={serviceTime}
+													options={timeSlotOptions}
+													onchange={handleServiceInputChange}
+													data-field="serviceTime"
+													required
+													placeholder="Select Time"
+												></lightning-combobox>
+											</div>
+											<div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+												<lightning-input
+													type="tel"
+													label="Best Contact Phone"
+													value={serviceContactPhone}
+													onchange={handleServiceInputChange}
+													data-field="contactPhone"
+												></lightning-input>
+											</div>
+											<div class="slds-col slds-size_1-of-1">
+												<lightning-textarea
+													label="Additional Details"
+													value={serviceAdditionalDetails}
+													onchange={handleServiceInputChange}
+													data-field="additionalDetails"
+												></lightning-textarea>
+											</div>
+										</div>
+
+										<div class="service-selection__actions">
+											<lightning-button label="Back to Car Selection" onclick={handleBackToServiceSelection}></lightning-button>
+											<lightning-button
+												label="Submit Service Request"
+												variant="brand"
+												onclick={handleSubmitServiceRequest}
+												disabled={disableSubmitServiceRequest}
+											></lightning-button>
+										</div>
+									</template>
+								</template>
+
+								<template if:false={hasAutomobiles}>
+									<div class="empty-state compact-empty-state">
+										<p class="slds-text-heading_small">No cars available for service</p>
+										<p class="slds-m-top_x-small">Once cars are linked to your contact, they will appear here.</p>
+									</div>
+								</template>
+							</div>
+						</div>
+					</lightning-tab>
+
+					<lightning-tab label={openCasesTabLabel} value="openCases" onactive={handleTabActivated}>
+						<div class="tab-panel">
+							<template if:true={hasOpenCases}>
+								<lightning-datatable
+									key-field="caseId"
+									data={openCaseRows}
+									columns={openCaseColumns}
+									hide-checkbox-column
+								></lightning-datatable>
+							</template>
+							<template if:false={hasOpenCases}>
+								<div class="empty-state">
+									<p class="slds-text-heading_small">No open service items</p>
+									<p class="slds-m-top_x-small">Service requests you submit will appear here until they are resolved.</p>
+								</div>
+							</template>
+						</div>
+					</lightning-tab>
+				</lightning-tabset>
+			</template>
+
+			<template if:false={hasContact}>
+				<template if:false={loading}>
+					<div class="empty-state missing-contact">
+						<p class="slds-text-heading_small">No contact is linked to this user</p>
+						<p class="slds-m-top_x-small">
+							Experience users need a Contact on their User record before cars and purchases can be shown.
+						</p>
+					</div>
+				</template>
+			</template>
+		</div>
+	</lightning-card>
+</template>

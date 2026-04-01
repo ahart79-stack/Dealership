@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <description>Runs every hour and sums Value__c on all Automobile__c records by Location, writing the total to Location.Total_value_in_Automobiles__c.</description>
+    <label>Hourly Rollup: Automobile Values to Location</label>
+    <processType>AutoLaunchedFlow</processType>
+    <status>Active</status>
+
+    <interviewLabel>Hourly Rollup: Automobile Values to Location {!$Flow.CurrentDateTime}</interviewLabel>
+
+    <start>
+        <locationX>50</locationX>
+        <locationY>50</locationY>
+        <connector>
+            <targetReference>Rollup_Values</targetReference>
+        </connector>
+        <schedule>
+            <frequency>Once</frequency>
+            <startDate>2026-03-24</startDate>
+            <startTime>00:00:00.000Z</startTime>
+        </schedule>
+        <triggerType>Scheduled</triggerType>
+    </start>
+
+    <actionCalls>
+        <name>Rollup_Values</name>
+        <label>Rollup Automobile Values to Location</label>
+        <locationX>50</locationX>
+        <locationY>200</locationY>
+        <actionName>RollupLocationAutomobileValuesAction</actionName>
+        <actionType>apex</actionType>
+        <inputParameters>
+            <name>runRollup</name>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </inputParameters>
+    </actionCalls>
+
+</Flow>

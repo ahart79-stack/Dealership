@@ -1,9 +1,35 @@
 public with sharing class SellAutomobileController {
+    @TestVisible private static Integer nightlyMinOverride;
+    @TestVisible private static Integer nightlyMaxOverride;
+
     @AuraEnabled
     public static Integer sellRandomAutos(Integer count) {
         try {
             if (count == null || count <= 0) {
                 count = 10;
+            }
+
+            return sellAutos(count, false);
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    public static Integer sellNightlyAutos() {
+        try {
+            Integer minCount = nightlyMinOverride == null ? 15 : nightlyMinOverride;
+            Integer maxCount = nightlyMaxOverride == null ? 20 : nightlyMaxOverride;
+            Integer count = randomBetween(minCount, maxCount);
+            return sellAutos(count, true);
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    private static Integer sellAutos(Integer count, Boolean spreadAcrossLocations) {
+        try {
+            if (count == null || count <= 0) {
+                return 0;
             }
 
             // Load a pool of contacts to attach to sold vehicles
@@ -36,6 +62,7 @@ public with sharing class SellAutomobileController {
             } else if (recordTypesByName.containsKey('Sold')) {
                 soldRecordTypeId = recordTypesByName.get('Sold').getRecordTypeId();
             }
+            String locationField = firstExisting(fieldMap, new List<String>{'Location__c'});
             Schema.DisplayType soldDateType = soldDateField == null
                 ? null
                 : fieldMap.get(soldDateField).getDescribe().getType();
@@ -43,7 +70,7 @@ public with sharing class SellAutomobileController {
                 ? null
                 : fieldMap.get(soldFlagField).getDescribe().getType();
 
-            Integer querySize = Math.max(count * 5, 50);
+            Integer querySize = Math.max(count * 8, 100);
             String selectFields = 'Id, Bought__c, Value__c';
             if (fieldMap.containsKey('Make__c')) {
                 selectFields += ', Make__c';
@@ -54,12 +81,23 @@ public with sharing class SellAutomobileController {
             if (boughtPriceField != null) {
                 selectFields += ', ' + boughtPriceField;
             }
+            if (locationField != null) {
+                selectFields += ', ' + locationField;
+            }
 
             String soql = 'SELECT ' + selectFields +
                 ' FROM Automobile__c' +
-                ' WHERE Bought__c != NULL' +
-                (soldRecordTypeId != null ? ' AND RecordTypeId != \'' + soldRecordTypeId + '\'' : '') +
-                ' ORDER BY CreatedDate DESC' +
+                ' WHERE Bought__c != NULL';
+            if (soldRecordTypeId != null) {
+                soql += ' AND RecordTypeId != \'' + soldRecordTypeId + '\'';
+            }
+            if (statusField != null) {
+                soql += ' AND (' + statusField + ' = NULL OR ' + statusField + ' != \'Sold\')';
+            }
+            if (spreadAcrossLocations && locationField != null) {
+                soql += ' AND ' + locationField + ' != NULL';
+            }
+            soql += ' ORDER BY CreatedDate DESC' +
                 ' LIMIT ' + querySize;
             List<Automobile__c> candidates = Database.query(soql);
 
@@ -67,24 +105,21 @@ public with sharing class SellAutomobileController {
                 return 0;
             }
 
-            Integer target = Math.min(count, candidates.size());
-            Set<Integer> selectedIndexes = new Set<Integer>();
+            List<Automobile__c> selectedCandidates = spreadAcrossLocations && locationField != null
+                ? selectCandidatesAcrossLocations(candidates, count, locationField)
+                : selectCandidatesRandomly(candidates, count);
+
+            if (selectedCandidates.isEmpty()) {
+                return 0;
+            }
+
             List<Automobile__c> updates = new List<Automobile__c>();
             List<Id> selectedBuyerIds = new List<Id>();
             List<Automobile__c> selectedSources = new List<Automobile__c>();
             List<Date> selectedSoldDates = new List<Date>();
             List<Decimal> selectedSalePrices = new List<Decimal>();
-            Integer attempts = 0;
 
-            while (updates.size() < target && attempts < candidates.size() * 4) {
-                Integer idx = Math.mod(Math.abs(Crypto.getRandomInteger()), candidates.size());
-                attempts++;
-                if (selectedIndexes.contains(idx)) {
-                    continue;
-                }
-                selectedIndexes.add(idx);
-
-                Automobile__c source = candidates[idx];
+            for (Automobile__c source : selectedCandidates) {
                 Date boughtDate = (Date) source.get('Bought__c');
                 Date soldDate = randomSoldDate(boughtDate);
 
@@ -165,6 +200,7 @@ public with sharing class SellAutomobileController {
             Database.SaveResult[] results = Database.update(updates, false);
             List<Automobile__c> rtUpdates = new List<Automobile__c>();
             List<Purchase__c> purchaseInserts = new List<Purchase__c>();
+            Set<Id> contactIdsToRollup = new Set<Id>();
             for (Integer i = 0; i < results.size(); i++) {
                 if (results[i].isSuccess()) {
                     soldCount++;
@@ -172,6 +208,7 @@ public with sharing class SellAutomobileController {
                         rtUpdates.add(new Automobile__c(Id = updates[i].Id, RecordTypeId = soldRecordTypeId));
                     }
                     if (selectedBuyerIds[i] != null) {
+                        contactIdsToRollup.add(selectedBuyerIds[i]);
                         purchaseInserts.add(new Purchase__c(
                             Automobile__c = updates[i].Id,
                             Contact__c = selectedBuyerIds[i],
@@ -201,6 +238,9 @@ public with sharing class SellAutomobileController {
                     }
                 }
             }
+            if (!contactIdsToRollup.isEmpty()) {
+                rollupContactPurchaseMetrics(contactIdsToRollup);
+            }
             if (soldCount == 0 && !errors.isEmpty()) {
                 throw new AuraHandledException('No cars sold. Errors: ' + String.join(errors, '; '));
             }
@@ -210,16 +250,189 @@ public with sharing class SellAutomobileController {
         }
     }
 
-    private static Date randomSoldDate(Date boughtDate) {
-        Date today = System.today();
-        Date earliest = today.addDays(-59);
-        if (boughtDate != null && boughtDate > earliest) {
-            earliest = boughtDate;
+    @TestVisible
+    private static List<Automobile__c> selectCandidatesRandomly(List<Automobile__c> candidates, Integer count) {
+        List<Automobile__c> pool = new List<Automobile__c>(candidates);
+        shuffleAutomobiles(pool);
+
+        Integer target = Math.min(count, pool.size());
+        List<Automobile__c> selected = new List<Automobile__c>();
+        for (Integer i = 0; i < target; i++) {
+            selected.add(pool[i]);
+        }
+        return selected;
+    }
+
+    @TestVisible
+    private static List<Automobile__c> selectCandidatesAcrossLocations(
+        List<Automobile__c> candidates,
+        Integer count,
+        String locationField
+    ) {
+        Map<Id, List<Automobile__c>> locationToAutos = new Map<Id, List<Automobile__c>>();
+        List<Id> locationIds = new List<Id>();
+
+        for (Automobile__c candidate : candidates) {
+            Id locationId = (Id) candidate.get(locationField);
+            if (locationId == null) {
+                continue;
+            }
+            if (!locationToAutos.containsKey(locationId)) {
+                locationToAutos.put(locationId, new List<Automobile__c>());
+                locationIds.add(locationId);
+            }
+            locationToAutos.get(locationId).add(candidate);
         }
 
-        Integer span = Math.max(0, earliest.daysBetween(today));
+        if (locationIds.isEmpty()) {
+            return new List<Automobile__c>();
+        }
+
+        shuffleIds(locationIds);
+        for (Id locationId : locationIds) {
+            shuffleAutomobiles(locationToAutos.get(locationId));
+        }
+
+        Integer target = Math.min(count, candidates.size());
+        List<Automobile__c> selected = new List<Automobile__c>();
+        Integer locationIndex = 0;
+        while (selected.size() < target && !locationIds.isEmpty()) {
+            if (locationIndex >= locationIds.size()) {
+                locationIndex = 0;
+            }
+
+            Id locationId = locationIds[locationIndex];
+            List<Automobile__c> pool = locationToAutos.get(locationId);
+            if (pool.isEmpty()) {
+                locationIds.remove(locationIndex);
+                continue;
+            }
+
+            selected.add(pool.remove(0));
+            if (pool.isEmpty()) {
+                locationIds.remove(locationIndex);
+            } else {
+                locationIndex++;
+            }
+        }
+
+        return selected;
+    }
+
+    @TestVisible
+    private static Integer randomBetween(Integer minValue, Integer maxValue) {
+        Integer safeMin = minValue == null ? 15 : minValue;
+        Integer safeMax = maxValue == null ? 20 : maxValue;
+        if (safeMin > safeMax) {
+            Integer swap = safeMin;
+            safeMin = safeMax;
+            safeMax = swap;
+        }
+
+        Integer span = safeMax - safeMin;
         Integer offset = span == 0 ? 0 : Math.mod(Math.abs(Crypto.getRandomInteger()), span + 1);
-        return earliest.addDays(offset);
+        return safeMin + offset;
+    }
+
+    @TestVisible
+    private static void shuffleAutomobiles(List<Automobile__c> items) {
+        if (items == null || items.size() <= 1) {
+            return;
+        }
+
+        for (Integer i = items.size() - 1; i > 0; i--) {
+            Integer j = Math.mod(Math.abs(Crypto.getRandomInteger()), i + 1);
+            Automobile__c current = items[i];
+            items[i] = items[j];
+            items[j] = current;
+        }
+    }
+
+    @TestVisible
+    private static void shuffleIds(List<Id> items) {
+        if (items == null || items.size() <= 1) {
+            return;
+        }
+
+        for (Integer i = items.size() - 1; i > 0; i--) {
+            Integer j = Math.mod(Math.abs(Crypto.getRandomInteger()), i + 1);
+            Id current = items[i];
+            items[i] = items[j];
+            items[j] = current;
+        }
+    }
+
+    private static Date randomSoldDate(Date boughtDate) {
+        return System.today();
+    }
+
+    @TestVisible
+    private static void rollupContactPurchaseMetrics(Set<Id> contactIds) {
+        if (contactIds == null || contactIds.isEmpty()) {
+            return;
+        }
+
+        Map<String, Schema.SObjectField> contactFieldMap = Schema.SObjectType.Contact.fields.getMap();
+        String totalAmountField = resolveContactRollupField(
+            contactFieldMap,
+            new List<String>{
+                'Total_Amount_Purchased__c',
+                'TotalAmountPurchased__c',
+                'Total_amount_purchased__c'
+            },
+            'Total amount purchased'
+        );
+        String purchaseCountField = resolveContactRollupField(
+            contactFieldMap,
+            new List<String>{
+                'Number_of_Purchases__c',
+                'NumberOfPurchases__c',
+                'Number_of_purchases__c'
+            },
+            'Number of Purchases'
+        );
+
+        if (totalAmountField == null && purchaseCountField == null) {
+            return;
+        }
+
+        Map<Id, AggregateResult> aggregatesByContactId = new Map<Id, AggregateResult>();
+        for (AggregateResult ar : [
+            SELECT Contact__c contactId, COUNT(Id) purchaseCount, SUM(Purchase_Price__c) totalAmount
+            FROM Purchase__c
+            WHERE Contact__c IN :contactIds
+            GROUP BY Contact__c
+        ]) {
+            aggregatesByContactId.put((Id) ar.get('contactId'), ar);
+        }
+
+        List<Contact> contactUpdates = new List<Contact>();
+        for (Id contactId : contactIds) {
+            AggregateResult ar = aggregatesByContactId.get(contactId);
+            Contact contactUpdate = new Contact(Id = contactId);
+
+            if (totalAmountField != null) {
+                Decimal totalAmount = Decimal.valueOf(0);
+                if (ar != null && ar.get('totalAmount') != null) {
+                    totalAmount = ((Decimal) ar.get('totalAmount')).setScale(2);
+                }
+                contactUpdate.put(totalAmountField, totalAmount);
+            }
+
+            if (purchaseCountField != null) {
+                Integer purchaseCount = 0;
+                if (ar != null && ar.get('purchaseCount') != null) {
+                    purchaseCount = Integer.valueOf(String.valueOf(ar.get('purchaseCount')));
+                }
+                contactUpdate.put(purchaseCountField, purchaseCount);
+            }
+
+            contactUpdates.add(contactUpdate);
+        }
+
+        if (!contactUpdates.isEmpty()) {
+            Database.update(contactUpdates, false);
+        }
     }
 
     private static String firstExisting(Map<String, Schema.SObjectField> fieldMap, List<String> candidates) {
@@ -229,5 +442,33 @@ public with sharing class SellAutomobileController {
             }
         }
         return null;
+    }
+
+    private static String resolveContactRollupField(
+        Map<String, Schema.SObjectField> fieldMap,
+        List<String> apiCandidates,
+        String labelCandidate
+    ) {
+        String byApi = firstExisting(fieldMap, apiCandidates);
+        if (byApi != null) {
+            return byApi;
+        }
+
+        String normalizedLabel = normalizeFieldLabel(labelCandidate);
+        for (String fieldName : fieldMap.keySet()) {
+            String fieldLabel = fieldMap.get(fieldName).getDescribe().getLabel();
+            if (normalizeFieldLabel(fieldLabel) == normalizedLabel) {
+                return fieldName;
+            }
+        }
+
+        return null;
+    }
+
+    private static String normalizeFieldLabel(String input) {
+        if (String.isBlank(input)) {
+            return '';
+        }
+        return input.replaceAll('[^A-Za-z0-9]', '').toLowerCase();
     }
 }

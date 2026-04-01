@@ -1,0 +1,1 @@
+NightlyAutomobileSalesScheduler.unscheduleAll();

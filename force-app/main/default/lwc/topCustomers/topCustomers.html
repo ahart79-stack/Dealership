@@ -1,0 +1,28 @@
+<template>
+	<lightning-card title="Top Customers">
+		<div class="slds-p-around_medium">
+			<template if:true={loading}>
+				<lightning-spinner alternative-text="Loading top customers" size="small"></lightning-spinner>
+			</template>
+
+			<template if:true={error}>
+				<div class="slds-text-color_error">Error loading top customers.</div>
+			</template>
+
+			<template if:true={hasRows}>
+				<lightning-datatable
+					key-field="contactId"
+					data={rows}
+					columns={columns}
+					hide-checkbox-column
+				></lightning-datatable>
+			</template>
+
+			<template if:false={hasRows}>
+				<template if:false={error}>
+					<div>No customer purchases found.</div>
+				</template>
+			</template>
+		</div>
+	</lightning-card>
+</template>

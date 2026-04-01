@@ -1,0 +1,19 @@
+{
+  "folders": [
+    {
+      "path": "/Users/alex/Desktop/Createtestdata/Createtestdata"
+    }
+  ],
+  "settings": {
+    "eslint.workingDirectories": [
+      "/Users/alex/Desktop/Createtestdata/Createtestdata"
+    ],
+    "eslint.validate": [
+      "javascript",
+      "typescript"
+    ],
+    "eslint.options": {
+      "overrideConfigFile": "/Users/alex/Desktop/Createtestdata/Createtestdata/.eslintrc.json"
+    }
+  }
+}
