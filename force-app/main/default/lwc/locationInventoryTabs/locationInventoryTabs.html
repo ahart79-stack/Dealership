@@ -1,0 +1,53 @@
+<template>
+	<lightning-card title="Location Inventory" icon-name="standard:location">
+		<div class="slds-p-around_medium">
+			<template if:true={loading}>
+				<lightning-spinner alternative-text="Loading location inventory" size="small"></lightning-spinner>
+			</template>
+
+			<template if:true={errorMessage}>
+				<div class="slds-text-color_error slds-m-bottom_medium">{errorMessage}</div>
+			</template>
+
+			<template if:false={errorMessage}>
+				<p class="slds-text-title_caps slds-m-bottom_small">{locationName}</p>
+				<lightning-tabset variant="scoped">
+					<lightning-tab label={currentTabLabel}>
+						<div class="slds-p-top_small">
+							<template if:true={hasCurrentInventory}>
+								<lightning-datatable
+									key-field="automobileId"
+									data={currentInventory}
+									columns={currentColumns}
+									hide-checkbox-column
+								></lightning-datatable>
+							</template>
+							<template if:false={hasCurrentInventory}>
+								<div class="empty-state">
+									<p>No current inventory at this location.</p>
+								</div>
+							</template>
+						</div>
+					</lightning-tab>
+					<lightning-tab label={soldTabLabel}>
+						<div class="slds-p-top_small">
+							<template if:true={hasSoldInventory}>
+								<lightning-datatable
+									key-field="automobileId"
+									data={soldInventory}
+									columns={soldColumns}
+									hide-checkbox-column
+								></lightning-datatable>
+							</template>
+							<template if:false={hasSoldInventory}>
+								<div class="empty-state">
+									<p>No sold cars at this location.</p>
+								</div>
+							</template>
+						</div>
+					</lightning-tab>
+				</lightning-tabset>
+			</template>
+		</div>
+	</lightning-card>
+</template>

@@ -59,6 +59,16 @@ public with sharing class CreateLocationsController {
         'St', 'Ave', 'Rd', 'Blvd', 'Ln', 'Dr', 'Way', 'Pl'
     };
 
+    private static final String[] MANAGER_FIRST_NAMES = new String[]{
+        'Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Avery', 'Parker',
+        'Cameron', 'Drew', 'Quinn', 'Skyler', 'Logan', 'Reese', 'Rowan', 'Hayden'
+    };
+
+    private static final String[] MANAGER_LAST_NAMES = new String[]{
+        'Bennett', 'Carter', 'Davis', 'Ellis', 'Foster', 'Griffin', 'Hayes', 'Jordan',
+        'Kennedy', 'Morris', 'Perry', 'Reed', 'Sawyer', 'Turner', 'Walker', 'Young'
+    };
+
     @AuraEnabled
     public static Integer createLocations(Integer count) {
         try {
@@ -125,6 +135,30 @@ public with sharing class CreateLocationsController {
             }
             Database.SaveResult[] accountResults = Database.insert(accountsToCreate, false);
 
+            Id managerContactRecordTypeId = resolveManagerContactRecordTypeId();
+            List<Contact> managersToCreate = new List<Contact>();
+            for (Integer i = 0; i < count; i++) {
+                String[] zip = selectedZips[i];
+                String firstName = MANAGER_FIRST_NAMES[Math.mod(Math.abs(Crypto.getRandomInteger()), MANAGER_FIRST_NAMES.size())];
+                String lastName = MANAGER_LAST_NAMES[Math.mod(Math.abs(Crypto.getRandomInteger()), MANAGER_LAST_NAMES.size())];
+
+                Contact manager = new Contact();
+                manager.FirstName = firstName;
+                manager.LastName = lastName;
+                manager.RecordTypeId = managerContactRecordTypeId;
+                manager.Phone = '555-' + String.valueOf(100 + Math.mod(Math.abs(Crypto.getRandomInteger()), 900))
+                    + '-' + String.valueOf(1000 + Math.mod(Math.abs(Crypto.getRandomInteger()), 9000));
+                manager.MailingCity = zip[1];
+                manager.MailingStateCode = zip[2];
+                manager.MailingPostalCode = zip[0];
+                manager.MailingCountryCode = 'US';
+                if (accountResults[i].isSuccess()) {
+                    manager.AccountId = accountResults[i].getId();
+                }
+                managersToCreate.add(manager);
+            }
+            Database.SaveResult[] managerResults = Database.insert(managersToCreate, false);
+
             List<Schema.Location> locations = new List<Schema.Location>();
             for (Integer i = 0; i < count; i++) {
                 String[] zip = selectedZips[i];
@@ -154,6 +188,9 @@ public with sharing class CreateLocationsController {
                 }
                 if (accountLookupField != null && accountResults[i].isSuccess()) {
                     loc.put(accountLookupField, accountResults[i].getId());
+                }
+                if (locationFields.containsKey('Location_Manager__c') && managerResults[i].isSuccess()) {
+                    loc.put('Location_Manager__c', managerResults[i].getId());
                 }
                 locations.add(loc);
             }
@@ -237,5 +274,19 @@ public with sharing class CreateLocationsController {
 
     private static Decimal square(Double value) {
         return Decimal.valueOf(value * value);
+    }
+
+    private static Id resolveManagerContactRecordTypeId() {
+        List<RecordType> recordTypes = [
+            SELECT Id
+            FROM RecordType
+            WHERE SObjectType = 'Contact' AND DeveloperName = 'Manager'
+            LIMIT 1
+        ];
+        if (recordTypes.isEmpty()) {
+            throw new AuraHandledException('Contact record type Manager is required before creating locations.');
+        }
+
+        return recordTypes[0].Id;
     }
 }

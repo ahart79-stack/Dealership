@@ -1,0 +1,65 @@
+<template>
+    <lightning-quick-action-panel header={panelHeader}>
+        <div class="slds-p-around_small">
+            <lightning-radio-group
+                name="mode"
+                label="Action"
+                options={modeOptions}
+                value={actionMode}
+                type="button"
+                onchange={handleModeChange}
+            ></lightning-radio-group>
+
+            <template lwc:if={isCreateMode}>
+                <lightning-input
+                    class="slds-m-top_medium"
+                    label="Franchise Name"
+                    value={franchiseName}
+                    onchange={handleNameChange}
+                    required
+                ></lightning-input>
+            </template>
+
+            <template lwc:else>
+                <lightning-combobox
+                    class="slds-m-top_medium"
+                    name="franchise"
+                    label="Existing Franchise"
+                    placeholder="Select a Franchise"
+                    options={franchiseOptions}
+                    value={selectedFranchiseId}
+                    onchange={handleFranchiseSelectChange}
+                    required
+                ></lightning-combobox>
+
+                <lightning-input
+                    class="slds-m-top_small"
+                    label="New Franchise Name (Optional)"
+                    value={franchiseName}
+                    onchange={handleNameChange}
+                ></lightning-input>
+            </template>
+
+            <lightning-dual-listbox
+                class="slds-m-top_medium"
+                name="locations"
+                label="Locations"
+                source-label="Available"
+                selected-label="Selected"
+                options={locationOptions}
+                value={selectedLocationIds}
+                onchange={handleLocationsChange}
+            ></lightning-dual-listbox>
+        </div>
+
+        <div slot="footer" class="slds-grid slds-grid_align-end slds-gutters_small">
+            <lightning-button label="Cancel" onclick={handleCancel}></lightning-button>
+            <lightning-button
+                variant="brand"
+                label={saveLabel}
+                onclick={handleSave}
+                disabled={isSaving}
+            ></lightning-button>
+        </div>
+    </lightning-quick-action-panel>
+</template>
